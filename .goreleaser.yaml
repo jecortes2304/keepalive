@@ -1,0 +1,50 @@
+version: 2
+project_name: keepalive
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: keepalive
+    main: ./cmd/keepalive
+    binary: keepalive
+    ldflags:
+      - -s -w
+      - -X keepalive/internal/cmd.version={{.Version}}
+      - -X keepalive/internal/cmd.commit={{.ShortCommit}}
+      - -X keepalive/internal/cmd.date={{.Date}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: jecortes
+    name: keepalive
