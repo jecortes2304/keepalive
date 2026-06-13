@@ -27,6 +27,7 @@ type Server struct {
 	mu         sync.RWMutex
 	status     StatusInfo
 	stopCh     chan struct{}
+	OnStop     func()
 }
 
 func NewServer(socketPath string) *Server {
@@ -112,6 +113,9 @@ func (s *Server) handleConn(conn net.Conn) {
 		_, err := conn.Write([]byte("ok"))
 		if err != nil {
 			fmt.Printf("failed to write: %v\n", err)
+		}
+		if s.OnStop != nil {
+			s.OnStop()
 		}
 	}
 }

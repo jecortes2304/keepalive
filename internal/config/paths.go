@@ -68,3 +68,24 @@ func PIDPath() string {
 func SocketPath() string {
 	return filepath.Join(RuntimeDir(), "keepalive.sock")
 }
+
+func LogDir() string {
+	home, _ := os.UserHomeDir()
+
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Logs", "keepalive")
+	case "windows":
+		return filepath.Join(DataDir(), "logs")
+	default:
+		state := os.Getenv("XDG_STATE_HOME")
+		if state == "" {
+			state = filepath.Join(home, ".local", "state")
+		}
+		return filepath.Join(state, "keepalive")
+	}
+}
+
+func LogPath() string {
+	return filepath.Join(LogDir(), "keepalive.log")
+}
