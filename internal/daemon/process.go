@@ -6,24 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"syscall"
 )
-
-func StartDetached(binary string, args []string) (int, error) {
-	cmd := exec.Command(binary, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true,
-	}
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("starting detached process: %w", err)
-	}
-
-	return cmd.Process.Pid, nil
-}
 
 func StopRunning(pidPath, socketPath string) error {
 	if runtime.GOOS == "darwin" {
@@ -44,7 +27,29 @@ func StopRunning(pidPath, socketPath string) error {
 		if err != nil {
 			return err
 		}
-		return process.Signal(syscall.SIGTERM)
+		return terminateProcess(process)
 	}
 	return nil
+}
+
+func startDetachedCmd(binary string, args []string) (*exec.Cmd, error) {
+	cmd := exec.Command(binary, args...)
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return cmd, nil
+}
+
+func StartDetached(binary string, args []string) (int, error) {
+	cmd, err := startDetachedCmd(binary, args)
+	if err != nil {
+		return 0, err
+	}
+	setProcAttr(cmd)
+
+	if err := cmd.Start(); err != nil {
+		return 0, fmt.Errorf("starting detached process: %w", err)
+	}
+
+	return cmd.Process.Pid, nil
 }
