@@ -63,13 +63,19 @@ var statusCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("  Profile:           %s\n", info.Profile)
-		fmt.Printf("  Strategy:          %s\n", info.Strategy)
-		fmt.Printf("  Movements:         %d\n", info.Movements)
 		fmt.Printf("  Uptime:            %s\n", time.Since(info.StartedAt).Truncate(time.Second))
-		if info.Duration > 0 {
-			fmt.Printf("  Session duration:  %s\n", info.Duration)
-			fmt.Printf("  Remaining:         %s\n", info.Remaining.Truncate(time.Second))
+
+		if info.Profile == "daemon" && info.Strategy == "scheduler" {
+			fmt.Println("  Session:           idle (waiting for next schedule)")
+		} else {
+			fmt.Println("  Session:           ACTIVE")
+			fmt.Printf("    Profile:         %s\n", info.Profile)
+			fmt.Printf("    Strategy:        %s\n", info.Strategy)
+			fmt.Printf("    Movements:       %d\n", info.Movements)
+			if info.Duration > 0 {
+				fmt.Printf("    Duration:        %s\n", info.Duration)
+				fmt.Printf("    Remaining:       %s\n", info.Remaining.Truncate(time.Second))
+			}
 		}
 		fmt.Println()
 		fmt.Printf("  Log file: %s\n", config.LogPath())

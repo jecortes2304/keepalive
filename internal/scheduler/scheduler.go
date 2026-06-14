@@ -70,6 +70,14 @@ func (s *Scheduler) Stop() {
 	s.cron.Stop()
 }
 
+func (s *Scheduler) StopSession() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
+}
+
 func (s *Scheduler) catchUp(ctx context.Context) error {
 	now := time.Now()
 	logging.Info("checking catch-up: current time=%s weekday=%s", now.Format("15:04:05"), now.Weekday())

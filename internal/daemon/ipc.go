@@ -22,12 +22,13 @@ type StatusInfo struct {
 }
 
 type Server struct {
-	socketPath string
-	listener   net.Listener
-	mu         sync.RWMutex
-	status     StatusInfo
-	stopCh     chan struct{}
-	OnStop     func()
+	socketPath    string
+	listener      net.Listener
+	mu            sync.RWMutex
+	status        StatusInfo
+	stopCh        chan struct{}
+	OnStop        func()
+	OnStopSession func()
 }
 
 func NewServer(socketPath string) *Server {
@@ -109,6 +110,14 @@ func (s *Server) handleConn(conn net.Conn) {
 		if err != nil {
 			fmt.Printf("failed to write: %v\n", err)
 		}
+	case "stop-session":
+		_, err := conn.Write([]byte("ok"))
+		if err != nil {
+			fmt.Printf("failed to write: %v\n", err)
+		}
+		if s.OnStopSession != nil {
+			s.OnStopSession()
+		}
 	case "stop":
 		_, err := conn.Write([]byte("ok"))
 		if err != nil {
@@ -160,6 +169,25 @@ func (c *Client) GetStatus() (*StatusInfo, error) {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 	return &info, nil
+}
+
+func (c *Client) SendStopSession() error {
+	conn, err := net.DialTimeout("unix", c.socketPath, 2*time.Second)
+	if err != nil {
+		return fmt.Errorf("connecting to daemon: %w", err)
+	}
+	defer func(conn net.Conn) {
+		err := conn.Close()
+		if err != nil {
+			fmt.Printf("failed to close connection: %v\n", err)
+		}
+	}(conn)
+
+	_, err = conn.Write([]byte("stop-session"))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) SendStop() error {

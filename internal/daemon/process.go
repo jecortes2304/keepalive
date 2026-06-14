@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"syscall"
 )
 
@@ -24,11 +26,19 @@ func StartDetached(binary string, args []string) (int, error) {
 }
 
 func StopRunning(pidPath, socketPath string) error {
+	if runtime.GOOS == "darwin" {
+		home, _ := os.UserHomeDir()
+		plistPath := filepath.Join(home, "Library", "LaunchAgents", "com.keepalive.daemon.plist")
+		if _, err := os.Stat(plistPath); err == nil {
+			exec.Command("launchctl", "unload", plistPath).Run()
+		}
+	}
+
 	client := NewClient(socketPath)
 	if err := client.SendStop(); err != nil {
 		pid, running := IsRunning(pidPath)
 		if !running {
-			return fmt.Errorf("no running instance found")
+			return nil
 		}
 		process, err := os.FindProcess(pid)
 		if err != nil {

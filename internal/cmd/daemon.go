@@ -105,8 +105,13 @@ func runDaemonCmd(*cobra.Command, []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	ipcServer.OnStopSession = func() {
+		logging.Info("stop-session command received via IPC")
+		sched.StopSession()
+	}
+
 	ipcServer.OnStop = func() {
-		logging.Info("stop command received via IPC")
+		logging.Info("stop-daemon command received via IPC")
 		cancel()
 	}
 

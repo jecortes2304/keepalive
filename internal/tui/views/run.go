@@ -374,7 +374,13 @@ func (v *RunView) stopSession() tea.Cmd {
 
 	pidPath := config.PIDPath()
 	socketPath := config.SocketPath()
-	daemon.StopRunning(pidPath, socketPath)
+	err := daemon.StopRunning(pidPath, socketPath)
+	if err != nil {
+		return func() tea.Msg {
+			v.err = fmt.Sprintf("Failed to stop session: %v", err)
+			return nil
+		}
+	}
 	v.state = runStateIdle
 	return nil
 }

@@ -218,6 +218,8 @@ func (v *ConfigView) handleKey(msg tea.KeyMsg) (ViewModel, tea.Cmd) {
 			}
 			return v, cmd
 		}
+	default:
+		panic("unhandled default case")
 	}
 
 	return v, nil
@@ -235,7 +237,12 @@ func (v *ConfigView) loadRecordings() {
 	if err != nil {
 		return
 	}
-	defer store.Close()
+	defer func(store *recording.Store) {
+		err := store.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}(store)
 	v.recordings, _ = store.List()
 }
 
@@ -456,8 +463,16 @@ func (v *ConfigView) deleteSelected() {
 		return
 	}
 	name := v.cfg.Profiles[v.cursor].Name
-	v.cfg.DeleteProfile(name)
-	config.Save(v.cfg)
+	err := v.cfg.DeleteProfile(name)
+	if err != nil {
+		v.err = err.Error()
+		return
+	}
+	err = config.Save(v.cfg)
+	if err != nil {
+		v.err = err.Error()
+		return
+	}
 	if v.cursor >= len(v.cfg.Profiles) && v.cursor > 0 {
 		v.cursor--
 	}
