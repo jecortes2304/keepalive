@@ -1,0 +1,249 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create ${{ github.ref_name }} --generate-notes --draft
+
+  build:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: keepalive_linux_amd64.tar.gz
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            artifact: keepalive_linux_arm64.tar.gz
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            artifact: keepalive_darwin_amd64.tar.gz
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: keepalive_darwin_arm64.tar.gz
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: keepalive_windows_amd64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Generate Windows resources
+        if: matrix.goos == 'windows'
+        run: go generate ./cmd/keepalive/...
+
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          LDFLAGS="-s -w -X keepalive/internal/cmd.version=${VERSION} -X keepalive/internal/cmd.commit=$(git rev-parse --short HEAD) -X keepalive/internal/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -ldflags "${LDFLAGS}" -o keepalive.exe ./cmd/keepalive
+          else
+            go build -ldflags "${LDFLAGS}" -o keepalive ./cmd/keepalive
+          fi
+
+      - name: Package (Unix)
+        if: matrix.goos != 'windows'
+        run: tar czf ${{ matrix.artifact }} keepalive
+
+      - name: Package (Windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: Compress-Archive -Path keepalive.exe -DestinationPath ${{ matrix.artifact }}
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: gh release upload ${{ github.ref_name }} ${{ matrix.artifact }}
+
+  linux-packages:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+      - name: Download Linux amd64 binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ github.ref_name }} --pattern "keepalive_linux_amd64.tar.gz" --dir .
+          tar xzf keepalive_linux_amd64.tar.gz
+
+      - name: Build deb and rpm
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          cat > nfpm.yaml << EOF
+          name: keepalive
+          arch: amd64
+          version: ${VERSION}
+          maintainer: jecortes2304
+          description: Keep your machine active with human-like mouse movements
+          homepage: https://github.com/jecortes2304/keepalive
+          license: MIT
+          contents:
+            - src: ./keepalive
+              dst: /usr/local/bin/keepalive
+          EOF
+
+          nfpm package --packager deb --target keepalive_${VERSION}_amd64.deb
+          nfpm package --packager rpm --target keepalive_${VERSION}_amd64.rpm
+
+      - name: Upload packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          gh release upload ${{ github.ref_name }} "keepalive_${VERSION}_amd64.deb" "keepalive_${VERSION}_amd64.rpm"
+
+  nsis-installer:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release download ${{ github.ref_name }} --pattern "keepalive_windows_amd64.zip" --dir .
+          Expand-Archive "keepalive_windows_amd64.zip" -DestinationPath .
+          Copy-Item "keepalive.exe" "packaging/nsis/keepalive.exe"
+
+      - name: Build NSIS installer
+        uses: joncloud/makensis-action@v4
+        with:
+          script-file: packaging/nsis/keepalive.nsi
+          arguments: "-DVERSION=${{ github.ref_name }}"
+
+      - name: Upload installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release upload $tag "packaging/nsis/keepalive_${tag}_windows_amd64_setup.exe"
+
+  publish-release:
+    needs: [build, linux-packages, nsis-installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download ${{ github.ref_name }} --dir dist
+          cd dist
+          sha256sum * > checksums.txt
+          gh release upload ${{ github.ref_name }} checksums.txt
+          cd ..
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit ${{ github.ref_name }} --draft=false
+
+  homebrew:
+    needs: publish-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          DARWIN_AMD64_URL="https://github.com/jecortes2304/keepalive/releases/download/${{ github.ref_name }}/keepalive_darwin_amd64.tar.gz"
+          DARWIN_ARM64_URL="https://github.com/jecortes2304/keepalive/releases/download/${{ github.ref_name }}/keepalive_darwin_arm64.tar.gz"
+
+          gh release download ${{ github.ref_name }} --pattern "checksums.txt" --dir .
+          DARWIN_AMD64_SHA=$(grep "keepalive_darwin_amd64.tar.gz" checksums.txt | awk '{print $1}')
+          DARWIN_ARM64_SHA=$(grep "keepalive_darwin_arm64.tar.gz" checksums.txt | awk '{print $1}')
+
+          cat > keepalive.rb << FORMULA
+          class Keepalive < Formula
+            desc "Keep your machine active with human-like mouse movements"
+            homepage "https://github.com/jecortes2304/keepalive"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${DARWIN_ARM64_URL}"
+                sha256 "${DARWIN_ARM64_SHA}"
+              else
+                url "${DARWIN_AMD64_URL}"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+
+            def install
+              bin.install "keepalive"
+            end
+
+            test do
+              system "#{bin}/keepalive", "version"
+            end
+          end
+          FORMULA
+
+          # Push formula to tap repo
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/jecortes2304/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp keepalive.rb tap/Formula/keepalive.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/keepalive.rb
+          git commit -m "Update keepalive to ${VERSION}" || true
+          git push

@@ -4,6 +4,7 @@ project_name: keepalive
 before:
   hooks:
     - go mod tidy
+    - go generate ./cmd/keepalive/...
 
 builds:
   - id: keepalive
@@ -33,6 +34,31 @@ archives:
         format: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
+nfpms:
+  - package_name: keepalive
+    vendor: jecortes2304
+    homepage: https://github.com/jecortes2304/keepalive
+    description: Keep your machine active with human-like mouse movements
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+
+brews:
+  - name: keepalive
+    repository:
+      owner: jecortes2304
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/jecortes2304/keepalive
+    description: Keep your machine active with human-like mouse movements
+    license: MIT
+    install: |
+      bin.install "keepalive"
+    test: |
+      system "#{bin}/keepalive", "version"
+
 checksum:
   name_template: "checksums.txt"
 
@@ -46,5 +72,5 @@ changelog:
 
 release:
   github:
-    owner: jecortes
+    owner: jecortes2304
     name: keepalive

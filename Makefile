@@ -5,7 +5,7 @@ COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X keepalive/internal/cmd.version=$(VERSION) -X keepalive/internal/cmd.commit=$(COMMIT) -X keepalive/internal/cmd.date=$(DATE)"
 
-.PHONY: build run test clean lint
+.PHONY: build run test clean lint generate release-local
 
 build:
 	@mkdir -p $(BUILD_DIR)
@@ -22,5 +22,11 @@ clean:
 
 lint:
 	golangci-lint run ./...
+
+generate:
+	go generate ./cmd/keepalive/...
+
+release-local:
+	goreleaser release --snapshot --clean
 
 .DEFAULT_GOAL := build

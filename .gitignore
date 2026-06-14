@@ -1,6 +1,6 @@
 # Binaries
 build/
-keepalive
+/keepalive
 *.exe
 *.exe~
 *.dll
@@ -31,3 +31,9 @@ vendor/
 # Runtime
 *.pid
 *.sock
+
+# Generated Windows resource
+*.syso
+
+# GoReleaser
+dist/

@@ -1,0 +1,40 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": {
+      "Major": 0,
+      "Minor": 0,
+      "Patch": 0,
+      "Build": 0
+    },
+    "ProductVersion": {
+      "Major": 0,
+      "Minor": 0,
+      "Patch": 0,
+      "Build": 0
+    },
+    "FileFlagsMask": "3f",
+    "FileFlags": "",
+    "FileOS": "040004",
+    "FileType": "01",
+    "FileSubType": "00"
+  },
+  "StringFileInfo": {
+    "Comments": "",
+    "CompanyName": "jecortes2304",
+    "FileDescription": "Keep your machine active with human-like mouse movements",
+    "FileVersion": "",
+    "InternalName": "keepalive",
+    "LegalCopyright": "Copyright (c) 2024-2026 jecortes2304",
+    "OriginalFilename": "keepalive.exe",
+    "ProductName": "Keepalive",
+    "ProductVersion": ""
+  },
+  "VarFileInfo": {
+    "Translation": {
+      "LangID": "0409",
+      "CharsetID": "04B0"
+    }
+  },
+  "IconPath": "../../assets/icon.ico",
+  "ManifestPath": ""
+}

@@ -124,21 +124,38 @@ make test
 
 ## Releasing
 
-This project uses [GoReleaser](https://goreleaser.com/) for releases.
+Releases are fully automated via GitHub Actions. When you push a version tag, the CI pipeline builds native binaries for all platforms, generates installers, and publishes everything to a GitHub Release.
 
-### Creating a release
+### Release cycle
 
 ```bash
-# Tag a version
-git tag -a v1.0.0 -m "Release v1.0.0"
+# 1. Make your changes and commit
+git add .
+git commit -m "add new feature X"
+
+# 2. Tag a version (follows semver)
+git tag v1.0.0
+
+# 3. Push the tag — this triggers the release workflow
 git push origin v1.0.0
-
-# Build release locally (dry run)
-goreleaser release --snapshot --clean
-
-# Actual release (requires GITHUB_TOKEN)
-goreleaser release --clean
 ```
+
+That's it. GitHub Actions will:
+1. Build native binaries (macOS amd64/arm64, Linux amd64/arm64, Windows amd64)
+2. Generate `.deb` and `.rpm` packages for Linux
+3. Build an NSIS installer (`.exe` setup wizard) for Windows
+4. Update the Homebrew tap formula
+5. Create checksums and publish the GitHub Release
+
+### Local snapshot (dry run)
+
+To test the release process locally without publishing:
+
+```bash
+make release-local
+```
+
+This uses GoReleaser to build archives for your current platform only.
 
 ### Versioning
 
@@ -146,6 +163,32 @@ This project follows [Semantic Versioning](https://semver.org/):
 - `MAJOR`: Breaking changes to CLI interface
 - `MINOR`: New features (new commands, options)
 - `PATCH`: Bug fixes
+
+### Release artifacts
+
+| Platform | Artifacts |
+|----------|-----------|
+| macOS | `.tar.gz` binary, Homebrew formula |
+| Linux | `.tar.gz` binary, `.deb`, `.rpm` |
+| Windows | `.zip` binary, `.exe` installer (NSIS) |
+
+### Homebrew installation (macOS)
+
+Once the tap repo is set up:
+
+```bash
+brew tap jecortes2304/tap
+brew install keepalive
+```
+
+### Setup (one-time)
+
+To enable the full release pipeline you need two GitHub secrets in your repo settings:
+
+1. **`GITHUB_TOKEN`** — Provided automatically by GitHub Actions
+2. **`HOMEBREW_TAP_TOKEN`** — A GitHub PAT with `repo` scope for `jecortes2304/homebrew-tap`
+
+You also need to create the repository `jecortes2304/homebrew-tap` (can be empty with just a README).
 
 ## Architecture
 
